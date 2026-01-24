@@ -114,7 +114,17 @@
                 targetY: 350,
                 waitTime: 0,
                 state: 'moving' // moving or waiting
-            }
+            },
+            iceBoat: {
+                x: -100,
+                y: 400,
+                width: 70,
+                height: 40,
+                speed: 4,
+                direction: 1, // 1 = right, -1 = left
+                nextSpawnTime: 0
+            },
+            venezuelans: []
         };
         
         // Touch controls
@@ -173,6 +183,8 @@
             game.bombs = [];
             game.lastBombTime = Date.now();
             game.bombInterval = 1000;
+            game.iceBoat.nextSpawnTime = Date.now() + 5000; // First ICE boat in 5 seconds
+            game.venezuelans = [];
         }
         
         function drawBoat() {
@@ -236,6 +248,86 @@
                     cb.targetX = Math.random() * (canvas.width - cb.width);
                     cb.targetY = 300 + Math.random() * 150; // Stay in lower half
                     cb.state = 'moving';
+                }
+            }
+        }
+        
+        function drawICEBoat() {
+            const ib = game.iceBoat;
+            
+            // Boat body (dark green/black)
+            ctx.fillStyle = '#064e3b';
+            ctx.fillRect(ib.x, ib.y, ib.width, ib.height);
+            
+            // Cabin
+            ctx.fillStyle = '#022c22';
+            ctx.fillRect(ib.x + 25, ib.y - 10, 20, 10);
+            
+            // ICE label
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('ICE', ib.x + ib.width / 2, ib.y + ib.height / 2 + 5);
+        }
+        
+        function drawVenezuelan(v) {
+            // Simple person icon
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath();
+            ctx.arc(v.x, v.y - 5, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillRect(v.x - 3, v.y, 6, 8);
+        }
+        
+        function updateICEBoat() {
+            const ib = game.iceBoat;
+            const now = Date.now();
+            
+            // Check if it's time to spawn ICE boat
+            if (now > ib.nextSpawnTime && (ib.x < -100 || ib.x > canvas.width + 100)) {
+                // Spawn from random side
+                ib.direction = Math.random() > 0.5 ? 1 : -1;
+                if (ib.direction === 1) {
+                    ib.x = -100;
+                } else {
+                    ib.x = canvas.width + 100;
+                }
+                ib.y = 320 + Math.random() * 100;
+                ib.nextSpawnTime = now + 8000 + Math.random() * 4000; // Spawn every 8-12 seconds
+                
+                // Add some Venezuelans on the boat
+                for (let i = 0; i < 3; i++) {
+                    game.venezuelans.push({
+                        x: ib.x + 15 + i * 15,
+                        y: ib.y + 10,
+                        onBoat: true
+                    });
+                }
+            }
+            
+            // Move ICE boat
+            ib.x += ib.speed * ib.direction;
+            
+            // Update Venezuelans
+            for (let i = game.venezuelans.length - 1; i >= 0; i--) {
+                const v = game.venezuelans[i];
+                
+                if (v.onBoat) {
+                    // Move with the boat
+                    v.x = ib.x + 15 + (i * 15);
+                    v.y = ib.y + 10;
+                    
+                    // If boat reaches edge, drop them off on "island"
+                    if ((ib.direction === 1 && ib.x > canvas.width - 50) || 
+                        (ib.direction === -1 && ib.x < 50)) {
+                        v.onBoat = false;
+                        v.dropTime = now;
+                    }
+                } else {
+                    // Fade out after being dropped off
+                    if (now - v.dropTime > 2000) {
+                        game.venezuelans.splice(i, 1);
+                    }
                 }
             }
         }
@@ -356,6 +448,27 @@
                 // Update and draw Chris's boat doing side quests
                 updateChrisBoat();
                 drawChrisBoat();
+                
+                // Update and draw ICE boat
+                updateICEBoat();
+                if (game.iceBoat.x > -100 && game.iceBoat.x < canvas.width + 100) {
+                    drawICEBoat();
+                }
+                
+                // Draw Venezuelans
+                for (const v of game.venezuelans) {
+                    drawVenezuelan(v);
+                }
+                
+                // Check collision with ICE boat
+                if (checkCollision(game.boat, game.iceBoat)) {
+                    game.state = 'gameOver';
+                    if (game.score > highScore) {
+                        highScore = game.score;
+                        localStorage.setItem('drugBoatHighScore', highScore);
+                        highScoreDisplay.textContent = highScore;
+                    }
+                }
                 
                 // Update bombs
                 for (let i = game.bombs.length - 1; i >= 0; i--) {
