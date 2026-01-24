@@ -103,7 +103,18 @@
             lastBombTime: 0,
             bombInterval: 1000,
             touchStartX: 0,
-            touchStartY: 0
+            touchStartY: 0,
+            chrisBoat: {
+                x: 50,
+                y: 350,
+                width: 50,
+                height: 35,
+                speed: 2,
+                targetX: 50,
+                targetY: 350,
+                waitTime: 0,
+                state: 'moving' // moving or waiting
+            }
         };
         
         // Touch controls
@@ -119,8 +130,8 @@
             if (game.state !== 'playing') {
                 startGame();
             } else {
-                game.touchStartX = touchX;
-                game.touchStartY = touchY;
+                game.boat.targetX = Math.max(0, Math.min(canvas.width - game.boat.width, touchX - game.boat.width / 2));
+                game.boat.targetY = Math.max(300, Math.min(canvas.height - game.boat.height, touchY - game.boat.height / 2));
             }
         });
         
@@ -155,9 +166,9 @@
         function startGame() {
             game.state = 'playing';
             game.score = 0;
-            game.boat.x = 250;
+            game.boat.x = 270;
             game.boat.y = 450;
-            game.boat.targetX = 250;
+            game.boat.targetX = 270;
             game.boat.targetY = 450;
             game.bombs = [];
             game.lastBombTime = Date.now();
@@ -175,9 +186,58 @@
             
             // Label
             ctx.fillStyle = 'white';
-            ctx.font = 'bold 14px Arial';
+            ctx.font = 'bold 12px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText('DRUG BOAT', game.boat.x + game.boat.width / 2, game.boat.y + game.boat.height + 15);
+            ctx.fillText("ANDY KLIETZ'S", game.boat.x + game.boat.width / 2, game.boat.y + game.boat.height + 15);
+            ctx.fillText('DRUG BOAT', game.boat.x + game.boat.width / 2, game.boat.y + game.boat.height + 28);
+        }
+        
+        function drawChrisBoat() {
+            const cb = game.chrisBoat;
+            
+            // Boat body (different color)
+            ctx.fillStyle = '#3b82f6';
+            ctx.fillRect(cb.x, cb.y, cb.width, cb.height);
+            
+            // Cabin
+            ctx.fillStyle = '#1e40af';
+            ctx.fillRect(cb.x + 15, cb.y - 8, 20, 8);
+            
+            // Label
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 10px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText("CHRIS METCALF'S", cb.x + cb.width / 2, cb.y + cb.height + 12);
+            ctx.fillText('BOAT', cb.x + cb.width / 2, cb.y + cb.height + 23);
+        }
+        
+        function updateChrisBoat() {
+            const cb = game.chrisBoat;
+            
+            if (cb.state === 'moving') {
+                // Move towards target
+                const dx = cb.targetX - cb.x;
+                const dy = cb.targetY - cb.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < 5) {
+                    // Reached target, start waiting
+                    cb.state = 'waiting';
+                    cb.waitTime = Date.now() + Math.random() * 2000 + 1000; // Wait 1-3 seconds
+                } else {
+                    // Move towards target
+                    cb.x += (dx / dist) * cb.speed;
+                    cb.y += (dy / dist) * cb.speed;
+                }
+            } else if (cb.state === 'waiting') {
+                // Check if done waiting
+                if (Date.now() > cb.waitTime) {
+                    // Pick new random target
+                    cb.targetX = Math.random() * (canvas.width - cb.width);
+                    cb.targetY = 300 + Math.random() * 150; // Stay in lower half
+                    cb.state = 'moving';
+                }
+            }
         }
         
         function drawBomb(bomb) {
@@ -251,25 +311,31 @@
                 ctx.fillStyle = '#d1d5db';
                 ctx.fillText('Dodge the Trump Bombs!', canvas.width / 2, canvas.height / 2 + 50);
             } else if (game.state === 'playing') {
-                // Move boat
+                // Move boat with keyboard
                 if (game.keys['ArrowLeft'] && game.boat.x > 0) {
                     game.boat.x -= game.boat.speed;
+                    game.boat.targetX = game.boat.x;
                 }
                 if (game.keys['ArrowRight'] && game.boat.x < canvas.width - game.boat.width) {
                     game.boat.x += game.boat.speed;
+                    game.boat.targetX = game.boat.x;
                 }
                 if (game.keys['ArrowUp'] && game.boat.y > 300) {
                     game.boat.y -= game.boat.speed;
+                    game.boat.targetY = game.boat.y;
                 }
                 if (game.keys['ArrowDown'] && game.boat.y < canvas.height - game.boat.height) {
                     game.boat.y += game.boat.speed;
+                    game.boat.targetY = game.boat.y;
                 }
                 
-                // Smooth touch movement
-                const dx = game.boat.targetX - game.boat.x;
-                const dy = game.boat.targetY - game.boat.y;
-                game.boat.x += dx * 0.2;
-                game.boat.y += dy * 0.2;
+                // Smooth touch movement (only when not using keyboard)
+                if (!game.keys['ArrowLeft'] && !game.keys['ArrowRight'] && !game.keys['ArrowUp'] && !game.keys['ArrowDown']) {
+                    const dx = game.boat.targetX - game.boat.x;
+                    const dy = game.boat.targetY - game.boat.y;
+                    game.boat.x += dx * 0.2;
+                    game.boat.y += dy * 0.2;
+                }
                 
                 // Spawn bombs
                 const now = Date.now();
@@ -286,6 +352,10 @@
                         game.bombInterval -= 5;
                     }
                 }
+                
+                // Update and draw Chris's boat doing side quests
+                updateChrisBoat();
+                drawChrisBoat();
                 
                 // Update bombs
                 for (let i = game.bombs.length - 1; i >= 0; i--) {
